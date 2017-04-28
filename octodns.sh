@@ -73,9 +73,10 @@ assert_required_params() {
 }
 
 usage(){
-  echo "USAGE: ${SCRIPT_NAME}"
+  echo "USAGE: ${SCRIPT_NAME} </path/to/dns.json>"
   echo ''
-  echo 'Description: ...'
+  echo 'Description: Will convert the </path/to/dns.json> into Route53 change format'
+  echo '             and POST it up to AWS'
   echo ''
   echo 'Arguments:'
   echo '  -h, --help       print this help text'
