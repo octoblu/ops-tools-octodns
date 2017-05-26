@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPT_NAME='octodns'
+SCRIPT_NAME='octodns-srv'
 
 matches_debug() {
   if [ -z "$DEBUG" ]; then
@@ -73,17 +73,19 @@ assert_required_params() {
 }
 
 usage(){
-  echo "USAGE: ${SCRIPT_NAME} </path/to/dns.json>"
+  echo "USAGE:"
+  echo "  ${SCRIPT_NAME} [OPTIONS] </path/to/dns.json>"
   echo ''
-  echo 'Description: Will convert the </path/to/dns.json> into Route53 change format'
-  echo '             and POST it up to AWS'
+  echo 'DESCRIPTION:'
+  echo '  Will convert the srvRecords portion in </path/to/dns.json>'
+  echo '  to Route53 change format and POST it up to AWS'
   echo ''
-  echo 'Arguments:'
+  echo 'OPTIONS:'
   echo '  -h, --help       print this help text'
   echo '  -n, --dry-run    do a dry run'
   echo '  -v, --version    print the version'
   echo ''
-  echo 'Environment:'
+  echo 'ENVIRONMENT:'
   echo '  DEBUG            print debug output'
   echo ''
 }

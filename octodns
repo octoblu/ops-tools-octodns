@@ -1,0 +1,153 @@
+#!/bin/bash
+
+SCRIPT_NAME='octodns'
+
+matches_debug() {
+  if [ -z "$DEBUG" ]; then
+    return 1
+  fi
+  if [[ $SCRIPT_NAME == "$DEBUG" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+debug() {
+  local cyan='\033[0;36m'
+  local no_color='\033[0;0m'
+  local message="$@"
+  matches_debug || return 0
+  (>&2 echo -e "[${cyan}${SCRIPT_NAME}${no_color}]: $message")
+}
+
+err_echo(){
+  local message="$1"
+  echo "$message" 1>&2
+}
+
+script_directory(){
+  local source="${BASH_SOURCE[0]}"
+  local dir=""
+
+  while [ -h "$source" ]; do # resolve $source until the file is no longer a symlink
+    dir="$( cd -P "$( dirname "$source" )" && pwd )"
+    source="$(readlink "$source")"
+    [[ $source != /* ]] && source="$dir/$source" # if $source was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+  done
+
+  dir="$( cd -P "$( dirname "$source" )" && pwd )"
+
+  echo "$dir"
+}
+
+assert_required_params() {
+  local action="$1"
+
+  if [ -n "$action" ]; then
+    return 0
+  fi
+
+  usage 1>&2
+
+  if [ -z "$action" ]; then
+    err_echo "Missing <ACTION> argument"
+  fi
+
+  exit 1
+}
+
+usage(){
+  echo 'USAGE:'
+  echo "  ${SCRIPT_NAME} [OPTIONS] <ACTION>"
+  echo ''
+  echo 'DESCRIPTION:'
+  echo '  Update DNS records using JSON files'
+  echo ''
+  echo 'ACTIONS:'
+  # echo '  alias            process the aliasRecords portion of the json file'
+  echo '  help             print this help text'
+  echo '  srv              process the srvRecords portion of the json file'
+  echo ''
+  echo 'OPTIONS:'
+  echo '  -h, --help       print this help text'
+  echo '  -v, --version    print the version'
+  echo ''
+  echo 'ENVIRONMENT:'
+  echo '  DEBUG            print debug output'
+  echo ''
+}
+
+version(){
+  local directory
+  directory="$(script_directory)"
+
+  if [ -f "$directory/VERSION" ]; then
+    cat "$directory/VERSION"
+  else
+    echo "unknown-version"
+  fi
+}
+
+main() {
+  local action script_file
+
+  # Define args up here
+  while [ "$1" != "" ]; do
+    local param="$1"
+    # local value="$2"
+    case "$param" in
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      -v | --version)
+        version
+        exit 0
+        ;;
+      # Arg with value
+      # -x | --example)
+      #   example="$value"
+      #   shift
+      #   ;;
+      # Arg without value
+      # -e | --example-flag)
+      #   example_flag='true'
+      #   ;;
+      *)
+        if [ "${param::1}" == '-' ]; then
+          echo "ERROR: unknown parameter \"$param\""
+          usage
+          exit 1
+        fi
+        # Set main arguments
+        if [ -z "$action" ]; then
+          action="$param"
+        fi
+        ;;
+    esac
+    shift
+
+    if [ -n "$action" ]; then
+      break # This script will process no arguments after the action
+    fi
+  done
+
+  assert_required_params "$action"
+
+  if [ "$action" == "help" ]; then
+    usage
+    exit 0
+  fi
+
+  script_file="$(script_directory)/octodns-$action"
+
+  if [ ! -f "$script_file" ]; then
+    usage
+    err_echo "unknown action '$action'"
+    exit 1
+  fi
+
+  /bin/bash "$script_file" "$@"
+}
+
+main "$@"
