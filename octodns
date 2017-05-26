@@ -64,7 +64,7 @@ usage(){
   echo '  Update DNS records using JSON files'
   echo ''
   echo 'ACTIONS:'
-  # echo '  alias            process the aliasRecords portion of the json file'
+  echo '  alias            process the aliasRecords portion of the json file'
   echo '  help             print this help text'
   echo '  srv              process the srvRecords portion of the json file'
   echo ''

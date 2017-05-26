@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPT_NAME='octodns-srv'
+SCRIPT_NAME='octodns-alias'
 
 matches_debug() {
   if [ -z "$DEBUG" ]; then
@@ -42,21 +42,19 @@ script_directory(){
 }
 
 assert_required_information() {
-  local domain zone_name
-
-  domain="$1"
-  zone_name="$2"
+  local domain="$1"
+  local zone_name="$2"
 
   if [ -n "$domain" ] && [ -n "$zone_name" ]; then
     return 0
   fi
 
   if [ -z "$domain" ]; then
-    err_echo "dns.json file was missing a '.domain' property"
+    echo "dns.json file was missing a '.domain' property"
   fi
 
   if [ -z "$zone_name" ]; then
-    err_echo "dns.json file was missing a '.zoneName' property"
+    echo "dns.json file was missing a '.zoneName' property"
   fi
 
   exit 1
@@ -72,9 +70,9 @@ assert_required_params() {
   usage
 
   if [ -z "$dns_json_path" ]; then
-    err_echo "Missing </path/to/dns.json>"
+    echo "Missing </path/to/dns.json>"
   elif [ ! -r "$dns_json_path" ]; then
-    err_echo "File at </path/to/dns.json> is either not a file, or is unreadable"
+    echo "File at </path/to/dns.json> is either not a file, or is unreadable"
   fi
 
   exit 1
@@ -85,7 +83,7 @@ usage(){
   echo "  ${SCRIPT_NAME} [OPTIONS] </path/to/dns.json>"
   echo ''
   echo 'DESCRIPTION:'
-  echo '  Will convert the srvRecords portion in </path/to/dns.json>'
+  echo '  Will convert the aliasRecords portion in </path/to/dns.json>'
   echo '  to Route53 change format and POST it up to AWS'
   echo ''
   echo 'OPTIONS:'
@@ -110,7 +108,7 @@ version(){
 }
 
 generate_change(){
-  local domain dns_json_path name template
+  local domain dns_json_path elb_name load_balancer name template
   dns_json_path="$1"
   domain="$2"
   name="$3"
@@ -120,40 +118,36 @@ generate_change(){
     "Action": "UPSERT",
     "ResourceRecordSet": {
       "Name": null,
-      "Type": "SRV",
+      "Type": "A",
       "TTL": 300,
-      "ResourceRecords": []
+      "AliasTarget": {
+        "HostedZoneId": null,
+        "DNSName": null,
+        "EvaluateTargetHealth": false
+      }
     }
   }
 EOF
 
+  elb_name="$(jq --raw-output ".aliasRecords[\"$name\"].elb" "$dns_json_path")" || return $?
   hostname="$name.$domain"
-  num_entries="$(jq ".srvRecords[\"$name\"] | length" "$dns_json_path")"
+  elb="$(get_elb "$elb_name")" || return $?
+  hosted_zone_id="$(echo "$elb" | jq --raw-output '.CanonicalHostedZoneNameID')" || return $?
+  dns_name="$(echo "$elb" | jq --raw-output '.CanonicalHostedZoneName')" || return $?
 
   template="$(echo "$template" | jq --arg hostname "$hostname" '.ResourceRecordSet.Name = $hostname')"
-
-  for i in $(seq 1 "$num_entries"); do
-    let "index = i - 1"
-
-    priority="$(jq --raw-output ".srvRecords[\"$name\"][$index] | .priority" "$dns_json_path")"
-    weight="$(jq --raw-output ".srvRecords[\"$name\"][$index] | .weight" "$dns_json_path")"
-    port="$(jq --raw-output ".srvRecords[\"$name\"][$index] | .port" "$dns_json_path")"
-    hostname="$(jq --raw-output ".srvRecords[\"$name\"][$index] | .hostname" "$dns_json_path")"
-
-    record="$priority $weight $port $hostname"
-
-    template="$(echo "$template" | jq --arg record "$record" '.ResourceRecordSet.ResourceRecords += [{"Value": $record}]')"
-  done
+  template="$(echo "$template" | jq --arg hostedZoneId "$hosted_zone_id" '.ResourceRecordSet.AliasTarget.HostedZoneId = $hostedZoneId')"
+  template="$(echo "$template" | jq --arg dnsName "$dns_name" '.ResourceRecordSet.AliasTarget.DNSName = $dnsName')"
 
   echo "$template"
 }
 
 generate_change_batch() {
-  local dns_json_path domain names output change
+  local change dns_json_path domain names output
   dns_json_path="$1"
   domain="$2"
 
-  names=( $(get_srv_names "$dns_json_path") ) || return 1
+  names=( $(get_alias_names "$dns_json_path") ) || return 1
   output='{"Comment": "Stack Updating DNS", "Changes": []}'
 
   for name in "${names[@]}"; do
@@ -164,10 +158,33 @@ generate_change_batch() {
   echo "$output"
 }
 
+get_alias_names(){
+  local dns_json_path="$1"
+
+  jq --raw-output '.aliasRecords | keys | .[]' "$dns_json_path"
+}
+
 get_domain() {
   local dns_json_path="$1"
 
   jq --raw-output '.domain' "$dns_json_path"
+}
+
+get_elb(){
+  set -o pipefail
+
+  local elb_name output
+  elb_name="$1"
+
+  output="$(aws elb describe-load-balancers --load-balancer-names "$elb_name")" || return $?
+  output="$(echo -n "$output" | jq --raw-output '.LoadBalancerDescriptions[0]')" || return $?
+
+  if [ -z "$output" ] || [ "$output" == "null" ]; then
+    err_echo "Could not find load balancer '$elb_name'"
+    return 1
+  fi
+
+  echo "$output"
 }
 
 get_route53_hosted_zone(){
@@ -175,12 +192,6 @@ get_route53_hosted_zone(){
 
   aws route53 list-hosted-zones \
   | jq --raw-output ".HostedZones | map(select(.Name == \"$zone_name\"))[0].Id"
-}
-
-get_srv_names(){
-  local dns_json_path="$1"
-
-  jq -r '.srvRecords | keys | .[]' "$dns_json_path"
 }
 
 get_zone_name() {
