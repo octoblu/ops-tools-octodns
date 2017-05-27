@@ -108,7 +108,7 @@ version(){
 }
 
 generate_change(){
-  local domain dns_json_path elb_name load_balancer name template
+  local domain dns_json_path elb elb_name name template
   dns_json_path="$1"
   domain="$2"
   name="$3"
@@ -159,7 +159,13 @@ generate_change_batch() {
 }
 
 get_alias_names(){
-  local dns_json_path="$1"
+  local dns_json_path num_keys
+  dns_json_path="$1"
+
+  num_keys="$(jq --raw-output '.aliasRecords | length' "$dns_json_path")"
+  if [ "$num_keys" == "0" ]; then
+    return
+  fi
 
   jq --raw-output '.aliasRecords | keys | .[]' "$dns_json_path"
 }
