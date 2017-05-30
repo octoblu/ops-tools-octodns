@@ -25,6 +25,13 @@ err_echo(){
   echo "$message" 1>&2
 }
 
+get_script_file() {
+  local action="$1"
+  # HOMEBREW HOOK: early return action
+
+  echo -n "$(script_directory)/octodns-$action"
+}
+
 script_directory(){
   local source="${BASH_SOURCE[0]}"
   local dir=""
@@ -140,7 +147,7 @@ main() {
     exit 0
   fi
 
-  script_file="$(script_directory)/octodns-$action"
+  script_file="$(get_script_file "$action")"
 
   if [ ! -f "$script_file" ]; then
     usage
