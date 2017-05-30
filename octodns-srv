@@ -74,7 +74,7 @@ assert_required_params() {
   if [ -z "$dns_json_path" ]; then
     err_echo "Missing </path/to/dns.json>"
   elif [ ! -r "$dns_json_path" ]; then
-    err_echo "File at </path/to/dns.json> is either not a file, or is unreadable"
+    echo "File at '$dns_json_path' is either not a file, or is unreadable"
   fi
 
   exit 1
