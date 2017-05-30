@@ -78,6 +78,7 @@ usage(){
 }
 
 version(){
+  # HOMEBREW HOOK: early return version
   local directory
   directory="$(script_directory)"
 
