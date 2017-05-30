@@ -26,6 +26,14 @@ err_echo() {
   echo "$message" 1>&2
 }
 
+fatal() {
+  local message
+  message="$1"
+
+  err_echo "$message"
+  exit 1
+}
+
 script_directory(){
   local source="${BASH_SOURCE[0]}"
   local dir=""
@@ -72,7 +80,7 @@ assert_required_params() {
   if [ -z "$dns_json_path" ]; then
     echo "Missing </path/to/dns.json>"
   elif [ ! -r "$dns_json_path" ]; then
-    echo "File at </path/to/dns.json> is either not a file, or is unreadable"
+    echo "File at '$dns_json_path' is either not a file, or is unreadable"
   fi
 
   exit 1
@@ -119,7 +127,6 @@ generate_change(){
     "ResourceRecordSet": {
       "Name": null,
       "Type": "A",
-      "TTL": 300,
       "AliasTarget": {
         "HostedZoneId": null,
         "DNSName": null,
