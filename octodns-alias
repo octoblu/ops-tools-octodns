@@ -2,6 +2,20 @@
 
 SCRIPT_NAME='octodns-alias'
 
+assert_octodns_version() {
+  local dns_json_path file_version
+  dns_json_path="$1"
+
+  file_version="$(jq --raw-output '.octodns.version' "$dns_json_path")" || exit 1
+  current_version="$(version)"
+
+  if [ "$current_version" != "$file_version" ]; then
+    err_echo "The file at '$dns_json_path' requires"
+    err_echo "octodns '$file_version', running version is: '$current_version'"
+    exit 1
+  fi
+}
+
 matches_debug() {
   if [ -z "$DEBUG" ]; then
     return 1
@@ -258,6 +272,7 @@ main() {
   done
 
   assert_required_params "$dns_json_path"
+  assert_octodns_version "$dns_json_path"
 
   domain="$(get_domain "$dns_json_path")" || exit 1
   zone_name="$(get_zone_name "$dns_json_path")" || exit 1
